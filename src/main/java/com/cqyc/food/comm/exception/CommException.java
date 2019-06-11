@@ -27,4 +27,11 @@ public class CommException {
         System.out.println("--------获取登录时异常--------");
         return ResponseEntity.status(HttpStatus.NOT_FOUND).body(e.getMessage());
     }
+
+    @ExceptionHandler(RuntimeException.class)
+    @ResponseBody
+    public ResponseEntity<String> handleRuntimeException(Exception e){
+        System.out.println("--------获取JWT登录时异常--------");
+        return ResponseEntity.status(HttpStatus.NOT_FOUND).body(e.getMessage());
+    }
 }

@@ -2,21 +2,31 @@ package com.cqyc.food.controller;
 
 
 import com.alibaba.fastjson.JSONObject;
+import com.cqyc.food.comm.JwtProperties;
 import com.cqyc.food.comm.exception.ExceptionEnums;
 import com.cqyc.food.comm.exception.YcException;
 import com.cqyc.food.domain.Buyer;
+import com.cqyc.food.domain.UserInfo;
 import com.cqyc.food.service.IBuyerService;
+import com.cqyc.food.utils.CookieUtils;
+import com.cqyc.food.utils.JwtUtils;
 import lombok.extern.slf4j.Slf4j;
+import org.apache.commons.lang3.StringUtils;
 import org.apache.shiro.SecurityUtils;
 import org.apache.shiro.authc.AuthenticationException;
 import org.apache.shiro.authc.IncorrectCredentialsException;
 import org.apache.shiro.authc.UsernamePasswordToken;
 import org.apache.shiro.subject.Subject;
 import org.springframework.beans.factory.annotation.Autowired;
+import org.springframework.beans.factory.annotation.Value;
+import org.springframework.boot.context.properties.EnableConfigurationProperties;
 import org.springframework.http.HttpStatus;
 import org.springframework.http.ResponseEntity;
 import org.springframework.web.bind.annotation.*;
 
+import javax.servlet.http.Cookie;
+import javax.servlet.http.HttpServletRequest;
+import javax.servlet.http.HttpServletResponse;
 import javax.servlet.http.HttpSession;
 import java.util.HashMap;
 import java.util.Map;
@@ -32,10 +42,17 @@ import java.util.Map;
 @RestController
 @Slf4j
 @RequestMapping("/buyer")
+@EnableConfigurationProperties(JwtProperties.class)
 public class BuyerController {
 
     @Autowired
     private IBuyerService buyerService;
+
+    @Autowired
+    private JwtProperties prop;
+
+    @Value("${yc.jwt.cookieName}")
+    private String cookieName;
 
     /**
      * 检测访问需要登录的页面时，需要跳转到这里
@@ -53,52 +70,55 @@ public class BuyerController {
      *  用户登录
      */
     @PostMapping("/login")
-    public ResponseEntity<String> userLogin(@RequestParam("loginName") String loginName,
-                                           @RequestParam("userPassword") String userPassword,HttpSession session){
+    public ResponseEntity<Object> userLogin(@RequestParam("loginName") String loginName,
+                                           @RequestParam("userPassword") String userPassword,
+                                           HttpServletResponse response, HttpServletRequest request) throws Exception {
 
-        JSONObject jsonObject = new JSONObject();
-        Subject currentUser = SecurityUtils.getSubject();
-        if (!currentUser.isAuthenticated()) {
-            //将用户名和密码为usernamePasswordToken
-            UsernamePasswordToken token = new UsernamePasswordToken(loginName, userPassword);
-            token.setRememberMe(true);
-            try {
-                currentUser.login(token);
-                jsonObject.put("token",currentUser.getSession().getId());
-                jsonObject.put("msg","登录成功");
-            }catch (IncorrectCredentialsException e){
-                jsonObject.put("msg","密码错误");
-                throw  new AuthenticationException("密码错误");
-            } catch (AuthenticationException e){
-                jsonObject.put("msg","该用户不存在");
-                throw  new AuthenticationException("该用户不存在");
-            }
-        }
-        return ResponseEntity.ok(jsonObject.toString());
-
-        /*Buyer buyer = buyerService.userLogin(loginName, userPassword);
-        session.setAttribute("buyer",buyer);*/
+//        Buyer buyer = buyerService.userLogin(loginName);
+        Map<String, String> map = new HashMap<>();
+        String token = buyerService.userToken(loginName,userPassword);
+        //TODO 写入cookie
+        CookieUtils.setCookie(request,response,cookieName,token);
+        map.put("code","10086");
+        map.put("status","登录成功");
+        map.put("token",token);
+        return ResponseEntity.ok(map);
     }
 
     /**
      * 每次校验用户是否登录
      */
     @PostMapping("/isLogin")
-    public ResponseEntity<Buyer> userIsLogin(HttpSession session){
-        Buyer buyer = (Buyer) session.getAttribute("buyer");
-        if(buyer == null){
+    public ResponseEntity<UserInfo> userIsLogin(@CookieValue("YC_TOKEN") String token,HttpServletResponse response,
+                                             HttpServletRequest request ){
+        if(StringUtils.isBlank(token)){
+            //如果没有token，证明没有登录，返回500
             throw new YcException(ExceptionEnums.USER_NOT_LOGIN);
         }
-        return ResponseEntity.ok(buyer);
+        //解析token
+        try {
+            UserInfo info = JwtUtils.getInfoFromToken(token, prop.getPublicKey());
+            //刷新token，重新生成token
+            System.out.println("info = " + info.getAccount()+" : "+info.getUserName());
+            String newToken = JwtUtils.generateToken(info,prop.getPrivateKey(),prop.getExpire());
+            //写入cookie中
+            CookieUtils.setCookie(request,response,cookieName,newToken);
+            //返回用户登录信息
+            return ResponseEntity.ok(info);
+        }catch (Exception e){
+            throw new YcException(ExceptionEnums.UN_AUTHORIZED);
+        }
     }
 
     /**
      * 退出登录
      */
     @GetMapping("/loginOut")
-    public ResponseEntity<Void> userLoginOut(HttpSession session){
-        Subject currentUser = SecurityUtils.getSubject();
-        currentUser.logout();
+    public ResponseEntity<Void> userLoginOut(HttpServletResponse response,
+                                             HttpServletRequest request){
+        /*Subject currentUser = SecurityUtils.getSubject();
+        currentUser.logout();*/
+        CookieUtils.deleteCookie(request,response,cookieName);
         return ResponseEntity.status(HttpStatus.NO_CONTENT).build();
     }
 

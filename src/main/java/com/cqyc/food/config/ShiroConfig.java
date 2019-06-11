@@ -20,7 +20,7 @@ import java.util.LinkedHashMap;
  * @Author:
  * @Date:
  */
-@Configuration
+//@Configuration
 @Slf4j
 public class ShiroConfig {
     //这里配置CredentialsMatcher

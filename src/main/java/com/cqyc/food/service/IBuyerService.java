@@ -16,4 +16,6 @@ public interface IBuyerService extends IService<Buyer> {
     Buyer userLogin(String loginName);
 
     void userRegister(Buyer buyer);
+
+    String userToken(String loginName, String userPassword) throws Exception;
 }

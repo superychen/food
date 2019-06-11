@@ -24,6 +24,9 @@ public enum  ExceptionEnums {
     SHOP_CART_QUERY_ERROR(500,"购物车查询失败"),
     INSERT_ORDER_ERROR(500,"增加订单失败"),
     QUERY_ORDER_ERROR(500,"订单查询失败，或者没有订单"),
+    USER_LOGIN_ERROR(500,"用户登录凭证失败,检查cookie是否被删除"),
+    USER_LOGIN_PASSWORD_ERROR(500,"用户登录时密码错误"),
+    UN_AUTHORIZED(403,"未授权"),
     ;
     private int code;
     private String msg;

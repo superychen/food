@@ -2,12 +2,14 @@ package com.cqyc.food.controller;
 
 
 import com.alibaba.fastjson.JSONObject;
-import com.cqyc.food.domain.Buyer;
-import com.cqyc.food.domain.Food;
-import com.cqyc.food.domain.Orders;
-import com.cqyc.food.domain.ShopCart;
+import com.cqyc.food.comm.JwtProperties;
+import com.cqyc.food.comm.exception.ExceptionEnums;
+import com.cqyc.food.comm.exception.YcException;
+import com.cqyc.food.domain.*;
 import com.cqyc.food.service.IOrdersService;
+import com.cqyc.food.utils.JwtUtils;
 import org.springframework.beans.factory.annotation.Autowired;
+import org.springframework.boot.context.properties.EnableConfigurationProperties;
 import org.springframework.http.HttpStatus;
 import org.springframework.http.ResponseEntity;
 import org.springframework.web.bind.annotation.*;
@@ -26,18 +28,27 @@ import java.util.List;
  */
 @RestController
 @RequestMapping("/orders")
+@EnableConfigurationProperties(JwtProperties.class)
 public class OrdersController {
 
     @Autowired
     private IOrdersService ordersService;
 
+    @Autowired
+    private JwtProperties prop;
+
     /**
      * 插入订单后然后再查询
      */
     @GetMapping("/queryOrder")
-    public ResponseEntity<List<Orders>> queryOrder(HttpSession session){
-        Buyer buyer = (Buyer) session.getAttribute("buyer");
-        return ResponseEntity.ok(ordersService.queryOrder(buyer.getAccount()));
+    public ResponseEntity<List<Orders>> queryOrder(@CookieValue("YC_TOKEN") String token){
+//        Buyer buyer = (Buyer) session.getAttribute("buyer");
+        try {
+            UserInfo info = JwtUtils.getInfoFromToken(token, prop.getPublicKey());
+            return ResponseEntity.ok(ordersService.queryOrder(info.getAccount()));
+        } catch (Exception e) {
+            throw new YcException(ExceptionEnums.QUERY_ORDER_ERROR);
+        }
     }
 
     /**
@@ -56,9 +67,15 @@ public class OrdersController {
      * 插入对应的一条数据
      */
     @PostMapping("insertOneOrder")
-    public ResponseEntity<Object> insertOneOrder(@RequestBody String food,HttpSession session){
+    public ResponseEntity<Object> insertOneOrder(@RequestBody String food,@CookieValue("YC_TOKEN") String token){
         Food food1 = JSONObject.parseObject(food, Food.class);
-        Buyer buyer = (Buyer) session.getAttribute("buyer");
-        return ResponseEntity.ok(ordersService.insertOneOrder(food1,buyer.getAccount()));
+//        Buyer buyer = (Buyer) session.getAttribute("buyer");
+        try {
+            UserInfo info = JwtUtils.getInfoFromToken(token, prop.getPublicKey());
+            return ResponseEntity.ok(ordersService.insertOneOrder(food1,info.getAccount()));
+        } catch (Exception e) {
+            throw new YcException(ExceptionEnums.INSERT_ORDER_ERROR);
+        }
+
     }
 }
